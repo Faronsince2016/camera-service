@@ -1,0 +1,52 @@
+<html lang="en">
+<body>
+
+<input type='button' value='REC' onClick='rec()'>
+<div id='contents'>
+    <img id="live" src="" width="1280" height="720" alt="">
+</div>
+
+<script type='text/javascript'>
+    let ws = null
+
+    function rec() {
+        // const ws = new WebSocket('ws://localhost:8888/live');
+        const ws_path = 'ws://' + window.location.host + window.location.pathname + 'live';
+        //alert(ws_path);
+        if (ws === null) ws = new WebSocket(ws_path)
+        const img = document.getElementById('live');
+        // ws.binaryType = 'blob';
+
+        ws.onopen = function () {
+            ws.send(1)
+            console.log('connect');
+        }
+
+        //接收到消息的回调方法
+        ws.onmessage = function (msg) {
+            // console.log(msg)
+            // img.src = URL.createObjectURL(e.data);
+            ws.send(1)
+            // img.srcObject = e.data;
+            img.src = 'data:image/jpg;base64,' + msg.data;
+        }
+        //连接关闭的回调方法
+        ws.onclose = function (e) {
+            ws.send(1);
+        }
+
+        //连接发送错误的回调方法
+        ws.onerror = function () {
+            alert("连接发送错误")
+        }
+        //监听窗口关闭事件，当窗口关闭时，主动关闭webSocket连接
+        //防止连接还没断开就关闭窗口，server端会抛异常
+        ws.onbeforeunload = function () {
+            alert("窗口关闭了,关闭socket连接")
+            ws.close(1000);
+        }
+    }
+</script>
+</body>
+</html>
+
