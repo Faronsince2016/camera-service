@@ -1,5 +1,6 @@
 import asyncio
 import base64
+import math
 import threading
 import time
 import uuid
@@ -30,6 +31,27 @@ def gen_uuid():
     uuid_origin = uuid.uuid4()
     uuid_str = str(uuid_origin).replace('-', '')
     return uuid_str
+
+
+def cv_resize(img_np, scale, interpolation=cv2.INTER_NEAREST):
+    """
+    :param interpolation:
+    interpolation 选项	    所用的插值方法
+    INTER_NEAREST	        最近邻插值
+    INTER_LINEAR	        双线性插值（默认设置）
+    INTER_AREA	            使用像素区域关系进行重采样。 它可能是图像抽取的首选方法，因为它会产生无云纹理的结果。
+                            但是当图像缩放时，它类似于INTER_NEAREST方法。
+    INTER_CUBIC	            4x4像素邻域的双三次插值
+    INTER_LANCZOS4	        8x8像素邻域的Lanczos插值
+
+
+    :param img_np:ndarray
+    :param scale: 分辨率缩放比例
+    :return:resized ndarray
+    """
+    scale = math.sqrt(scale)
+    return cv2.resize(img_np, (int(img_np.shape[1] * scale), int(img_np.shape[0] * scale)),
+                      interpolation=interpolation)
 
 
 class BaseHandler(tornado.web.RequestHandler, ABC):
