@@ -1,6 +1,5 @@
 import asyncio
 import base64
-import math
 import threading
 import time
 import uuid
@@ -31,27 +30,6 @@ def gen_uuid():
     uuid_origin = uuid.uuid4()
     uuid_str = str(uuid_origin).replace('-', '')
     return uuid_str
-
-
-def cv_resize(img_np, scale, interpolation=cv2.INTER_NEAREST):
-    """
-    :param interpolation:
-    interpolation 选项	    所用的插值方法
-    INTER_NEAREST	        最近邻插值
-    INTER_LINEAR	        双线性插值（默认设置）
-    INTER_AREA	            使用像素区域关系进行重采样。 它可能是图像抽取的首选方法，因为它会产生无云纹理的结果。
-                            但是当图像缩放时，它类似于INTER_NEAREST方法。
-    INTER_CUBIC	            4x4像素邻域的双三次插值
-    INTER_LANCZOS4	        8x8像素邻域的Lanczos插值
-
-
-    :param img_np:ndarray
-    :param scale: 分辨率缩放比例
-    :return:resized ndarray
-    """
-    scale = math.sqrt(scale)
-    return cv2.resize(img_np, (int(img_np.shape[1] * scale), int(img_np.shape[0] * scale)),
-                      interpolation=interpolation)
 
 
 class BaseHandler(tornado.web.RequestHandler, ABC):
@@ -90,11 +68,12 @@ class CamParamsHandler(BaseHandler, ABC):
 
     def get(self):
         """
+        5472 / 3648   1920 / 1280   1080 / 720    720/480
         :return: 获取当前相机的所有参数，并获取所有可修改值
         """
         camera_params = dict(
-            width=5472,
-            height=3648,
+            width=720,
+            height=480,
         )
         self.write(camera_params)
 
@@ -178,10 +157,12 @@ def start_capture():
         try:
             capture_event.wait()
             origin_frame = camera.get_frame_once()
+
+            image = cv2.resize(origin_frame, (480, 720), interpolation=cv2.INTER_NEAREST)
             # img = cv2.imencode('.jpeg', origin_frame)[1].tobytes()
             # push_frame = (b'--frame\r\n'
             #               b'Content-Type: image/jpeg\r\n\r\n' + img + b'\r\n')
-            image = cv2.imencode('.jpg', origin_frame)[1]
+            image = cv2.imencode('.jpg', image)[1]
             image = numpy.array(image).tobytes()
             push_frame = base64.b64encode(image)
             frame_id = gen_uuid()
@@ -216,6 +197,7 @@ class WebServer(tornado.web.Application):
 if __name__ == '__main__':
     global camera
     camera = HikCam(0)
+
     web_server = WebServer()
     work_threads = [threading.Thread(target=start_server, args=(web_server,)),
                     threading.Thread(target=start_capture, args=())]
