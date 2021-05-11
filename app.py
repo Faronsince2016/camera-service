@@ -16,10 +16,8 @@ import tornado.web
 import tornado.websocket
 
 # 使用camera index获取相机
-camera = cv2.VideoCapture(1)
-# print(camera.set(cv2.CAP_PROP_FPS, 4))
-# camera.set(cv2.CAP_PROP_FRAME_WIDTH, 3264)
-# camera.set(cv2.CAP_PROP_FRAME_HEIGHT, 2448)
+from hk_cam import HikCam
+
 capture_event = threading.Event()
 origin_frame = None
 push_frame = b''
@@ -56,7 +54,7 @@ class FrameHandler(BaseHandler, ABC):
             if capture_event.is_set():
                 img = origin_frame
             else:
-                _, img = camera.read()
+                img = camera.get_frame_once()
             cv2.imwrite(img_path.as_posix(), img)
             # 使用nginx保证图片能通过url访问
             self.write(dict(path=img_path.as_posix(), url=f'http://localhost:8880/{img_path.name}'))
@@ -70,11 +68,12 @@ class CamParamsHandler(BaseHandler, ABC):
 
     def get(self):
         """
+        5472 / 3648   1920 / 1280   1080 / 720    720/480
         :return: 获取当前相机的所有参数，并获取所有可修改值
         """
         camera_params = dict(
-            width=camera.get(cv2.CAP_PROP_FRAME_WIDTH),
-            height=camera.get(cv2.CAP_PROP_FRAME_HEIGHT),
+            width=720,
+            height=480,
         )
         self.write(camera_params)
 
@@ -157,11 +156,13 @@ def start_capture():
     while True:
         try:
             capture_event.wait()
-            _, origin_frame = camera.read()
-            # img = cv2.imencode('.jpg', img)[1].tobytes()
+            origin_frame = camera.get_frame_once()
+
+            image = cv2.resize(origin_frame, (720, 1080), interpolation=cv2.INTER_NEAREST)
+            # img = cv2.imencode('.jpeg', origin_frame)[1].tobytes()
             # push_frame = (b'--frame\r\n'
             #               b'Content-Type: image/jpeg\r\n\r\n' + img + b'\r\n')
-            image = cv2.imencode('.jpg', origin_frame)[1]
+            image = cv2.imencode('.jpg', image)[1]
             image = numpy.array(image).tobytes()
             push_frame = base64.b64encode(image)
             frame_id = gen_uuid()
@@ -185,7 +186,7 @@ class WebServer(tornado.web.Application):
             ('/param', CamParamsHandler),
             ('/frame', FrameHandler)
         ]
-        settings = {'debug': True}
+        settings = {'debug': False}
         super().__init__(handlers, **settings)
 
     def run(self, port=8888):
@@ -194,6 +195,9 @@ class WebServer(tornado.web.Application):
 
 
 if __name__ == '__main__':
+    global camera
+    camera = HikCam(0)
+
     web_server = WebServer()
     work_threads = [threading.Thread(target=start_server, args=(web_server,)),
                     threading.Thread(target=start_capture, args=())]
